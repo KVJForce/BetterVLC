@@ -1,0 +1,11 @@
+/* ============================================================
+   BetterVLC — stylesheet entrypoint
+   Order matters: tokens/reset first, then layout, then features.
+   ============================================================ */
+
+@import './base.css';
+@import './layout.css';
+@import './pages.css';
+@import './player.css';
+@import './drawers.css';
+@import './overlays.css';
