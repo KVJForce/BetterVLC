@@ -35,7 +35,6 @@ export interface SettingsState {
   maxHeight: number
   deinterlace: boolean
   hwDecode: boolean
-  rememberQueue: boolean
   miniPlayer: boolean
   visualizer: boolean
   subtitle: SubtitleSettings
@@ -92,7 +91,6 @@ const baseSettings = {
   maxHeight: 1080,
   deinterlace: false,
   hwDecode: true,
-  rememberQueue: true,
   miniPlayer: true,
   visualizer: true,
   subtitle: defaultSubtitle,
@@ -116,6 +114,24 @@ export const useSettings = create<SettingsState>()(
     {
       name: 'bettervlc-settings',
       version: 1,
+      migrate: (persisted, version) => {
+        const saved = (persisted ?? {}) as Partial<SettingsState>
+        const eq = { ...defaultEq, ...(saved.eq ?? {}) }
+        if (!Array.isArray(eq.bands) || eq.bands.length !== EQ_FREQUENCIES.length) {
+          eq.bands = [...defaultEq.bands]
+        }
+        const migrated: Partial<SettingsState> = {
+          ...saved,
+          subtitle: { ...defaultSubtitle, ...(saved.subtitle ?? {}) },
+          eq
+        }
+        if (version < 1) {
+          // Version 0 stored the same shape without a version field; the
+          // defaults above fill anything that predates a setting.
+          migrated.reduceMotion ??= false
+        }
+        return migrated as SettingsState
+      },
       merge: (persisted, current) => {
         const saved = (persisted ?? {}) as Partial<SettingsState>
         return {
