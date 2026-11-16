@@ -353,8 +353,10 @@ auto-update was added after the hardening pass rather than as another H item.
 - **CI:** `.github/workflows/release.yml` runs on every push to `main`
   (`windows-latest`, Node 22). It runs `npm run typecheck`, then
   `npm run dist -- --publish always -c.extraMetadata.version=1.0.$GITHUB_RUN_NUMBER`.
-  electron-builder publishes the NSIS installer, portable exe, blockmap and
-  `latest.yml` to GitHub Releases using `GITHUB_TOKEN` (`contents: write`).
+  It first pushes a `v1.0.<run>` tag (GitHub rejects published releases whose
+  tag does not exist, and electron-builder does not create git tags), then
+  publishes the NSIS installer, portable exe, blockmap and `latest.yml` to
+  GitHub Releases using `GITHUB_TOKEN` (`contents: write`).
 - **Versioning:** `extraMetadata.version` overrides the version in the packaged
   `package.json` and in `latest.yml`, so artifact names and the release tag use
   the workflow run number without editing `package.json`. Run numbers only

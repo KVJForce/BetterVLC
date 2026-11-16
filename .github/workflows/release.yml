@@ -33,6 +33,14 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
+      - name: Create and push release tag
+        shell: bash
+        run: |
+          git tag "v1.0.${GITHUB_RUN_NUMBER}"
+          git push origin "v1.0.${GITHUB_RUN_NUMBER}"
+
+      # GitHub rejects a published (non-draft) release whose tag does not
+      # exist, so the tag must be pushed before electron-builder publishes.
       - name: Build and publish release
         shell: bash
         env:
