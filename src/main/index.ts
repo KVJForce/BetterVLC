@@ -7,12 +7,15 @@ import { probeMedia, sourceId } from './probe'
 import { getSource, rememberSource } from './registry'
 import { binaryPath, isMediaFile } from './config'
 import { readPlaylist } from './playlists'
+import { Routes, mimeForFile } from '../shared/protocol'
 import type { AppInfo, MediaInfo, PlaybackPlan } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let library: Library
 let server: StreamServer
 let baseUrl = ''
+let rendererReady = false
+const pendingOpenPaths: string[] = []
 
 app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required')
 if (process.env['ELECTRON_RENDERER_URL']) {
@@ -27,12 +30,20 @@ if (!gotLock) {
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore()
       mainWindow.focus()
-      const files = argv.slice(1).filter((arg) => isMediaFile(arg) && fs.existsSync(arg))
-      if (files.length) mainWindow.webContents.send('app:open-paths', files)
     }
+    const files = argv.slice(1).filter((arg) => isMediaFile(arg) && fs.existsSync(arg))
+    sendOpenPaths(files)
   })
 
-  app.whenReady().then(bootstrap)
+  app.whenReady()
+    .then(bootstrap)
+    .catch((error: unknown) => {
+      dialog.showErrorBox(
+        'BetterVLC could not start',
+        error instanceof Error ? error.stack ?? error.message : String(error)
+      )
+      app.quit()
+    })
 }
 
 async function bootstrap(): Promise<void> {
@@ -54,6 +65,9 @@ async function bootstrap(): Promise<void> {
   library.on('item', (item: MediaInfo) => {
     mainWindow?.webContents.send('library:item', item)
   })
+  library.on('remove', (item: MediaInfo) => {
+    mainWindow?.webContents.send('library:remove', item)
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -61,6 +75,7 @@ async function bootstrap(): Promise<void> {
 }
 
 function createWindow(): void {
+  rendererReady = false
   mainWindow = new BrowserWindow({
     width: 1420,
     height: 900,
@@ -75,6 +90,8 @@ function createWindow(): void {
       : path.join(app.getAppPath(), 'resources', 'icon.png'),
     webPreferences: {
       preload: path.join(__dirname, '../preload/index.mjs'),
+      // Sandboxed preloads must be CommonJS; this build emits ESM. See H19 in
+      // HARDENING_PLAN.md before changing either side.
       sandbox: false,
       contextIsolation: true,
       nodeIntegration: false,
@@ -102,16 +119,36 @@ function createWindow(): void {
     void mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'))
   }
 
+  mainWindow.webContents.on('did-start-loading', () => {
+    rendererReady = false
+  })
+
   mainWindow.webContents.once('did-finish-load', () => {
     const files = process.argv
       .slice(1)
       .filter((arg) => !arg.startsWith('-') && isMediaFile(arg) && fs.existsSync(arg))
-    if (files.length) mainWindow?.webContents.send('app:open-paths', files)
+    sendOpenPaths(files)
   })
 
   mainWindow.on('closed', () => {
+    rendererReady = false
     mainWindow = null
   })
+}
+
+function sendOpenPaths(paths: string[]): void {
+  if (!paths.length) return
+  if (!rendererReady || !mainWindow || mainWindow.isDestroyed()) {
+    pendingOpenPaths.push(...paths)
+    return
+  }
+  mainWindow.webContents.send('app:open-paths', paths)
+}
+
+function flushOpenPaths(): void {
+  if (!mainWindow || mainWindow.isDestroyed() || !pendingOpenPaths.length) return
+  const paths = pendingOpenPaths.splice(0)
+  mainWindow.webContents.send('app:open-paths', paths)
 }
 
 function registerMediaKeys(): void {
@@ -139,6 +176,13 @@ function registerIpc(): void {
   }))
 
   ipcMain.handle('app:baseUrl', () => baseUrl)
+  ipcMain.on('app:baseUrlSync', (event) => {
+    event.returnValue = baseUrl
+  })
+  ipcMain.handle('app:rendererReady', () => {
+    rendererReady = true
+    flushOpenPaths()
+  })
 
   ipcMain.handle('window:minimize', () => mainWindow?.minimize())
   ipcMain.handle('window:maximize', () => {
@@ -284,21 +328,12 @@ function registerIpc(): void {
     if (info.nativePlayable) {
       return {
         mode: 'native',
-        url: `${baseUrl}/media/${info.id}`,
-        mime: nativeMime(info),
+        url: `${baseUrl}${Routes.media(info.id)}`,
+        mime: mimeForFile(info.path, info.kind),
         duration: info.duration,
         baseTime: 0
       }
     }
-    const params = new URLSearchParams({
-      id: info.id,
-      t: start.toFixed(3),
-      a: String(options.audio ?? 0),
-      mh: String(options.maxHeight ?? 1080),
-      di: options.deinterlace ? '1' : '0',
-      hw: options.hwDecode === false ? '0' : '1',
-      ...(options.forceTranscode ? { tc: '1' } : {})
-    })
     const mime = options.forceTranscode
       ? info.kind === 'video'
         ? `video/mp4; codecs="avc1.640029${info.audioTracks.length ? ',mp4a.40.2' : ''}"`
@@ -306,7 +341,14 @@ function registerIpc(): void {
       : info.mseMime
     return {
       mode: 'mse',
-      url: `${baseUrl}/stream?${params.toString()}`,
+      url: `${baseUrl}${Routes.stream(info.id, {
+        start,
+        audio: options.audio,
+        maxHeight: options.maxHeight,
+        deinterlace: options.deinterlace,
+        hwDecode: options.hwDecode,
+        forceTranscode: options.forceTranscode
+      })}`,
       mime,
       duration: info.duration,
       baseTime: start
@@ -317,8 +359,8 @@ function registerIpc(): void {
     const info = getSource(id)
     const track = info?.subtitleTracks.find((t) => t.index === trackIndex)
     if (!track) return null
-    if (track.external && track.token) return `${baseUrl}/subtitle-ext/${track.token}`
-    return `${baseUrl}/subtitle/${id}/${trackIndex}`
+    if (track.external && track.token) return `${baseUrl}${Routes.externalSubtitle(track.token)}`
+    return `${baseUrl}${Routes.subtitle(id, trackIndex)}`
   })
 
   ipcMain.handle('media:addSubtitle', (_e, file: string) => {
@@ -340,17 +382,6 @@ function registerIpc(): void {
   })
 
   ipcMain.handle('media:sourceId', (_e, source: string) => sourceId(source))
-}
-
-function nativeMime(info: MediaInfo): string {
-  const ext = path.extname(info.path).slice(1).toLowerCase()
-  const map: Record<string, string> = {
-    mp4: 'video/mp4', m4v: 'video/mp4', mov: 'video/quicktime',
-    webm: 'video/webm', ogv: 'video/ogg',
-    mp3: 'audio/mpeg', flac: 'audio/flac', wav: 'audio/wav',
-    m4a: 'audio/mp4', aac: 'audio/aac', ogg: 'audio/ogg', oga: 'audio/ogg', opus: 'audio/ogg'
-  }
-  return map[ext] ?? (info.kind === 'video' ? 'video/mp4' : 'audio/mpeg')
 }
 
 function sanitizeName(name: string): string {

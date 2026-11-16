@@ -3,8 +3,8 @@ import path from 'node:path'
 import fs from 'node:fs'
 import { app } from 'electron'
 import { isMediaFile, userDir } from './config'
-import { probeMedia } from './probe'
-import { rememberSource } from './registry'
+import { probeMedia, fileKeyFor } from './probe'
+import { forgetSource, rememberSource } from './registry'
 import { ensureThumbnail, removeThumbnail, thumbFileName, thumbPath } from './thumbnails'
 import type { LibrarySnapshot, MediaInfo, ScanProgress } from '../shared/types'
 
@@ -12,6 +12,36 @@ interface LibraryFile {
   version: number
   folders: string[]
   items: MediaInfo[]
+}
+
+const LIBRARY_VERSION = 1
+
+function migrateLibrary(raw: Partial<LibraryFile>): LibraryFile {
+  const version = Number(raw.version ?? 0)
+  if (!Number.isFinite(version) || version < 0) {
+    throw new Error('Library file has an invalid version')
+  }
+  if (version > LIBRARY_VERSION) {
+    throw new Error(`Library version ${version} is newer than ${LIBRARY_VERSION}`)
+  }
+  let migrated: Partial<LibraryFile> = raw
+  switch (version) {
+    case 0:
+      // Version 0 predates the version field; the item shape is unchanged.
+      migrated = { ...raw, version: 1 }
+      break
+    case 1:
+      break
+  }
+  return {
+    version: LIBRARY_VERSION,
+    folders: Array.isArray(migrated.folders)
+      ? migrated.folders.filter((folder) => typeof folder === 'string')
+      : [],
+    items: Array.isArray(migrated.items)
+      ? migrated.items.filter((item) => !!item?.id && !!item?.path)
+      : []
+  }
 }
 
 const SKIP_DIRS = new Set([
@@ -30,6 +60,8 @@ export class Library extends EventEmitter {
   private scanning = false
   private queuedScan: { folders: string[]; prune: boolean } | null = null
   private saveTimer: NodeJS.Timeout | null = null
+  private disposed = false
+  private locked = false
   private file: string
 
   constructor() {
@@ -41,11 +73,19 @@ export class Library extends EventEmitter {
   private load(): void {
     try {
       if (!fs.existsSync(this.file)) return
-      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')) as LibraryFile
-      this.folders = Array.isArray(raw.folders) ? raw.folders.filter((f) => typeof f === 'string') : []
-      for (const item of raw.items ?? []) {
-        if (!item?.id || !item?.path) continue
+      const raw = JSON.parse(fs.readFileSync(this.file, 'utf8')) as Partial<LibraryFile>
+      if (Number(raw.version ?? 0) > LIBRARY_VERSION) {
+        // Leave a newer library untouched rather than overwriting it with an
+        // empty one from this build.
+        this.locked = true
+        console.warn('Library file was written by a newer BetterVLC version')
+        return
+      }
+      const migrated = migrateLibrary(raw)
+      this.folders = migrated.folders
+      for (const item of migrated.items) {
         if (!fs.existsSync(item.path)) continue
+        item.fileKey ??= fileKeyFor(item.path)
         const thumb = thumbPath(item)
         item.thumb = fs.existsSync(thumb) ? thumbFileName(item) : undefined
         this.items.set(item.id, item)
@@ -69,14 +109,16 @@ export class Library extends EventEmitter {
   }
 
   private saveSoon(): void {
+    if (this.disposed || this.locked) return
     if (this.saveTimer) clearTimeout(this.saveTimer)
     this.saveTimer = setTimeout(() => this.save(), 400)
   }
 
   save(): void {
+    if (this.locked) return
     try {
       const payload: LibraryFile = {
-        version: 1,
+        version: LIBRARY_VERSION,
         folders: this.folders,
         items: [...this.items.values()]
       }
@@ -110,6 +152,7 @@ export class Library extends EventEmitter {
       if (item.path && isInside(item.path, resolved)) {
         removeThumbnail(item)
         this.items.delete(id)
+        forgetSource(id)
       }
     }
     this.saveSoon()
@@ -121,6 +164,7 @@ export class Library extends EventEmitter {
     if (item) {
       removeThumbnail(item)
       this.items.delete(id)
+      forgetSource(id)
       this.saveSoon()
     }
     return this.snapshot()
@@ -131,6 +175,7 @@ export class Library extends EventEmitter {
   }
 
   async scan(folders: string[], prune: boolean): Promise<void> {
+    if (this.disposed) return
     if (this.scanning) {
       this.queuedScan = { folders: [...new Set([...(this.queuedScan?.folders ?? []), ...folders])], prune }
       return
@@ -138,12 +183,21 @@ export class Library extends EventEmitter {
     this.scanning = true
     try {
       const files: string[] = []
+      const scannable: string[] = []
       for (const folder of folders) {
+        // A folder that is gone (unplugged drive, deleted share) must not be
+        // treated as "all its files were removed" by the prune below.
         if (!fs.existsSync(folder)) continue
+        scannable.push(path.resolve(folder))
         await walk(folder, files, 0)
       }
       const unique = [...new Set(files.map((f) => path.resolve(f)))]
       const byPath = new Map([...this.items.values()].map((item) => [path.resolve(item.path), item]))
+      const byFileKey = new Map(
+        [...this.items.values()]
+          .filter((item) => !!item.fileKey)
+          .map((item) => [item.fileKey as string, item])
+      )
       const progress: ScanProgress = { phase: 'probing', done: 0, total: unique.length }
       this.emit('progress', progress)
 
@@ -151,6 +205,7 @@ export class Library extends EventEmitter {
       const fresh: MediaInfo[] = []
       let done = 0
       await mapLimit(unique, 3, async (file) => {
+        if (this.disposed) return
         found.add(path.resolve(file))
         const existing = byPath.get(path.resolve(file))
         if (existing) {
@@ -167,6 +222,10 @@ export class Library extends EventEmitter {
         }
         try {
           const info = await probeMedia(file)
+          // A rename changes the path id but not the file identity, so keep
+          // the original "added" time and Recent ordering in that case.
+          const previous = existing ?? (info.fileKey ? byFileKey.get(info.fileKey) : undefined)
+          if (previous) info.addedAt = previous.addedAt
           const thumb = thumbPath(info)
           info.thumb = fs.existsSync(thumb) ? thumbFileName(info) : undefined
           rememberSource(info)
@@ -180,12 +239,18 @@ export class Library extends EventEmitter {
         this.emit('progress', { ...progress, current: path.basename(file) })
       })
 
+      if (this.disposed) return
       if (prune) {
         for (const [id, item] of this.items) {
-          const inScanned = folders.some((f) => item.path && isInside(item.path, f))
+          const inScanned = scannable.some(
+            (folder) =>
+              fs.existsSync(folder) && item.path && isInside(item.path, folder)
+          )
           if (inScanned && !found.has(path.resolve(item.path))) {
             removeThumbnail(item)
             this.items.delete(id)
+            forgetSource(id)
+            this.emit('remove', item)
           }
         }
       }
@@ -198,16 +263,18 @@ export class Library extends EventEmitter {
       this.scanning = false
       const next = this.queuedScan
       this.queuedScan = null
-      if (next) void this.scan(next.folders, next.prune)
+      if (next && !this.disposed) void this.scan(next.folders, next.prune)
     }
   }
 
   private async generateThumbnails(items: MediaInfo[]): Promise<void> {
+    if (this.disposed) return
     const pending = items.filter((item) => !item.thumb && !item.isStream)
     if (!pending.length) return
     const progress: ScanProgress = { phase: 'thumbnails', done: 0, total: pending.length }
     this.emit('progress', progress)
     await mapLimit(pending, 2, async (item) => {
+      if (this.disposed) return
       const thumb = await ensureThumbnail(item)
       if (thumb) {
         const updated = { ...item, thumb: thumbFileName(item) }
@@ -219,14 +286,15 @@ export class Library extends EventEmitter {
       progress.done += 1
       this.emit('progress', { ...progress, current: item.title })
     })
+    if (this.disposed) return
     this.emit('progress', { phase: 'done', done: progress.total, total: progress.total })
   }
 
   private watch(folder: string): void {
-    if (this.watchers.has(folder)) return
+    if (this.disposed || this.watchers.has(folder)) return
     try {
       const watcher = fs.watch(folder, { recursive: true }, (_event, filename) => {
-        if (filename && !isMediaFile(String(filename)) && !String(filename).toLowerCase().endsWith('.srt')) {
+        if (filename && !isMediaFile(String(filename))) {
           return
         }
         const existing = this.watchTimers.get(folder)
@@ -255,6 +323,12 @@ export class Library extends EventEmitter {
   }
 
   dispose(): void {
+    this.disposed = true
+    this.queuedScan = null
+    if (this.saveTimer) {
+      clearTimeout(this.saveTimer)
+      this.saveTimer = null
+    }
     for (const folder of [...this.watchers.keys()]) this.unwatch(folder)
     this.save()
   }

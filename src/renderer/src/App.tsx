@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
+import { BITMAP_SUBTITLE_CODECS } from '../../shared/protocol'
 import { TitleBar } from './components/TitleBar'
 import { Sidebar } from './components/Sidebar'
 import { TopBar } from './components/TopBar'
@@ -80,6 +81,7 @@ export function App(): React.JSX.Element {
         useUi.getState().setFullscreen(value)
       })
     ]
+    void window.api.app.rendererReady()
     return () => offs.forEach((off) => off())
   }, [])
 
@@ -285,7 +287,7 @@ export function App(): React.JSX.Element {
             void player.setSubtitle(-1)
           } else {
             const track = player.subtitleTracks.find(
-              (entry) => !['hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'xsub'].includes(entry.codec)
+              (entry) => !BITMAP_SUBTITLE_CODECS.has(entry.codec)
             )
             if (track) void player.setSubtitle(track.index)
           }

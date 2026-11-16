@@ -21,6 +21,7 @@ export interface BetterVlcApi {
   platform: string
   app: {
     info(): Promise<AppInfo>
+    rendererReady(): Promise<void>
   }
   window: {
     minimize(): Promise<void>
@@ -58,6 +59,7 @@ export interface BetterVlcApi {
   on: {
     libraryProgress(cb: (progress: ScanProgress) => void): () => void
     libraryItem(cb: (item: MediaInfo) => void): () => void
+    libraryRemove(cb: (item: MediaInfo) => void): () => void
     mediaKey(cb: (action: string) => void): () => void
     openPaths(cb: (paths: string[]) => void): () => void
     fullscreen(cb: (value: boolean) => void): () => void

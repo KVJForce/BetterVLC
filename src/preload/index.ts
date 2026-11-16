@@ -4,6 +4,7 @@ import type { ScanProgress } from '../shared/types'
 
 const portArg = process.argv.find((arg) => arg.startsWith('--bettervlc-port='))
 const port = portArg ? portArg.split('=')[1] : ''
+const baseUrl = port ? `http://127.0.0.1:${port}` : (ipcRenderer.sendSync('app:baseUrlSync') as string)
 
 function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
   const listener = (_event: Electron.IpcRendererEvent, value: T) => cb(value)
@@ -12,10 +13,11 @@ function subscribe<T>(channel: string, cb: (value: T) => void): () => void {
 }
 
 const api: BetterVlcApi = {
-  baseUrl: port ? `http://127.0.0.1:${port}` : '',
+  baseUrl,
   platform: process.platform,
   app: {
-    info: () => ipcRenderer.invoke('app:info')
+    info: () => ipcRenderer.invoke('app:info'),
+    rendererReady: () => ipcRenderer.invoke('app:rendererReady')
   },
   window: {
     minimize: () => ipcRenderer.invoke('window:minimize'),
@@ -53,6 +55,7 @@ const api: BetterVlcApi = {
   on: {
     libraryProgress: (cb) => subscribe<ScanProgress>('library:progress', cb),
     libraryItem: (cb) => subscribe('library:item', cb),
+    libraryRemove: (cb) => subscribe('library:remove', cb),
     mediaKey: (cb) => subscribe('media-key', cb),
     openPaths: (cb) => subscribe('app:open-paths', cb),
     fullscreen: (cb) => subscribe('window:fullscreen', cb)
