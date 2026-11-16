@@ -1,0 +1,297 @@
+{
+  "generated_at": "2026-11-16T18:29:31.248837+00:00",
+  "nodes": {
+    "src_main_library_library": {
+      "code_fingerprint": "f78c00d86f70e7ae780e893ad961a9d9a91c30e757a416d41c9ef4f3f31408d1",
+      "label": "Library",
+      "last": "2026-11-16T18:28:12.528479+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:28:12.528479+00:00",
+          "outcome": "useful",
+          "q": "Trace queue, history, library and settings persistence: where does each live, how do they flow, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.999978949,
+      "source_file": "src/main/library.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_main_probe": {
+      "code_fingerprint": "6fcb363a5b13d20a9ca2234ccbde0755b7d5f44299e7ab2ca9de9f599644b694",
+      "label": "probe.ts",
+      "last": "2026-11-16T17:12:21.198005+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 0.998762608,
+      "source_file": "src/main/probe.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_main_registry": {
+      "code_fingerprint": "574d54e4a762c4d162093c84dd1f81f37680c812d76c6b5a69994d3756192ecb",
+      "label": "registry.ts",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 1.997633026,
+      "source_file": "src/main/registry.ts",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_main_streamserver": {
+      "code_fingerprint": "8fc5c7119fae7e91086545e8c6c699c977f006669df1efaaa3ad3dd15246883a",
+      "label": "streamServer.ts",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 1.997633026,
+      "source_file": "src/main/streamServer.ts",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_main_thumbnails": {
+      "code_fingerprint": "1cc54256f2801a34d0696f38ed537b85d51e4d0b77e7aea29ef43ade12314a63",
+      "label": "thumbnails.ts",
+      "last": "2026-11-16T17:12:21.198005+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 0.998762608,
+      "source_file": "src/main/thumbnails.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_renderer_src_components_playeroverlay": {
+      "code_fingerprint": "5344285dc7a4a02615b4a7aa06207f119c27d8048fd8cad144cde00ba2bae2bf",
+      "label": "PlayerOverlay.tsx",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 1.997633026,
+      "source_file": "src/renderer/src/components/PlayerOverlay.tsx",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_renderer_src_lib_playback_msesession": {
+      "code_fingerprint": "761861a6aa90aeb90494140bd57706aa947d1f536bd2057875cdd6cf6acc3494",
+      "label": "MseSession",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.998870419,
+      "source_file": "src/renderer/src/lib/playback.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_renderer_src_lib_playback_playbackcontroller": {
+      "code_fingerprint": "761861a6aa90aeb90494140bd57706aa947d1f536bd2057875cdd6cf6acc3494",
+      "label": "PlaybackController",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 1.997633026,
+      "source_file": "src/renderer/src/lib/playback.ts",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_renderer_src_lib_subtitles_cue": {
+      "code_fingerprint": "0289736a41a9ef3a5b98166902c1fbb13243f8987952273198d3e0183d14f4bf",
+      "label": "Cue",
+      "last": "2026-11-16T18:22:23.223633+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:22:23.223633+00:00",
+          "outcome": "useful",
+          "q": "Trace the subtitle path from embedded track extraction to on-screen cue rendering: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.999885545,
+      "source_file": "src/renderer/src/lib/subtitles.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_renderer_src_store_history_usehistory": {
+      "code_fingerprint": "0a442785e722c6769059a80f5cf63f46dd03eab498509e907f6ab4d7758ae905",
+      "label": "useHistory",
+      "last": "2026-11-16T18:28:12.528479+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:28:12.528479+00:00",
+          "outcome": "useful",
+          "q": "Trace queue, history, library and settings persistence: where does each live, how do they flow, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.999978949,
+      "source_file": "src/renderer/src/store/history.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_renderer_src_store_player": {
+      "code_fingerprint": "7457590e260ece8904df01290cd92ee68535b48bc19fe48353e8fca4c346030d",
+      "label": "player.ts",
+      "last": "2026-11-16T18:28:12.528479+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:28:12.528479+00:00",
+          "outcome": "useful",
+          "q": "Trace queue, history, library and settings persistence: where does each live, how do they flow, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 2.997611975,
+      "source_file": "src/renderer/src/store/player.ts",
+      "status": "preferred",
+      "uses": 3
+    },
+    "src_renderer_src_store_player_useplayer": {
+      "code_fingerprint": "7457590e260ece8904df01290cd92ee68535b48bc19fe48353e8fca4c346030d",
+      "label": "usePlayer",
+      "last": "2026-11-16T18:28:12.528479+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:28:12.528479+00:00",
+          "outcome": "useful",
+          "q": "Trace queue, history, library and settings persistence: where does each live, how do they flow, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.999978949,
+      "source_file": "src/renderer/src/store/player.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_shared_api": {
+      "code_fingerprint": "d05bf137f8f1463dc77bec34481551317dfeb1c1dd7ebde454922f229bf731d1",
+      "label": "api.ts",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        },
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 1.997633026,
+      "source_file": "src/shared/api.ts",
+      "status": "preferred",
+      "uses": 2
+    },
+    "src_shared_types_mediainfo": {
+      "code_fingerprint": "6a86b9595f425909caddafe702ba0f8b7ac0f45c9d6fa5727c47c14b24afe4c9",
+      "label": "MediaInfo",
+      "last": "2026-11-16T17:12:21.198005+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:12:21.198005+00:00",
+          "outcome": "useful",
+          "q": "Why does MediaInfo sit at the center of the whole system - bridging Main Process Core, Renderer UI, the MSE Playback Engine, the Preload API, Player Overlay, and Media Probing?"
+        }
+      ],
+      "score": 0.998762608,
+      "source_file": "src/shared/types.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_shared_types_playbackplan": {
+      "code_fingerprint": "6a86b9595f425909caddafe702ba0f8b7ac0f45c9d6fa5727c47c14b24afe4c9",
+      "label": "PlaybackPlan",
+      "last": "2026-11-16T17:19:04.830509+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T17:19:04.830509+00:00",
+          "outcome": "useful",
+          "q": "Trace the full playback path from probeMedia to PlayerOverlay: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.998870419,
+      "source_file": "src/shared/types.ts",
+      "status": "tentative",
+      "uses": 1
+    },
+    "src_shared_types_subtitletrackinfo": {
+      "code_fingerprint": "6a86b9595f425909caddafe702ba0f8b7ac0f45c9d6fa5727c47c14b24afe4c9",
+      "label": "SubtitleTrackInfo",
+      "last": "2026-11-16T18:22:23.223633+00:00",
+      "provenance": [
+        {
+          "date": "2026-11-16T18:22:23.223633+00:00",
+          "outcome": "useful",
+          "q": "Trace the subtitle path from embedded track extraction to on-screen cue rendering: where do main and renderer hand off, and what assumptions are not enforced by types?"
+        }
+      ],
+      "score": 0.999885545,
+      "source_file": "src/shared/types.ts",
+      "status": "tentative",
+      "uses": 1
+    }
+  },
+  "version": 1
+}

@@ -115,6 +115,13 @@ src/
   benefit from the resolution cap in Settings.
 - Streaming from a URL depends on FFmpeg's protocol support and the source's
   seekability.
+- The playback queue is session-only. It is not written to disk, because a
+  restored queue could contain ad-hoc files and external subtitle tokens that
+  no longer resolve; the player restarts clean rather than showing stale rows.
+- Watch history follows filesystem identity (`device:inode`), so renaming a
+  file keeps its resume point. Library cards and thumbnails are still keyed by
+  path, so a rename refreshes those. Removing and re-adding a file starts its
+  history over.
 
 ## License
 
