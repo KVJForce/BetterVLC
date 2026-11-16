@@ -7,6 +7,7 @@ import { probeMedia, sourceId } from './probe'
 import { getSource, rememberSource } from './registry'
 import { binaryPath, isMediaFile } from './config'
 import { readPlaylist } from './playlists'
+import { startUpdates } from './updater'
 import { Routes, mimeForFile } from '../shared/protocol'
 import type { AppInfo, MediaInfo, PlaybackPlan } from '../shared/types'
 
@@ -58,6 +59,7 @@ async function bootstrap(): Promise<void> {
   registerIpc()
   createWindow()
   registerMediaKeys()
+  startUpdates(() => mainWindow)
 
   library.on('progress', (progress) => {
     mainWindow?.webContents.send('library:progress', progress)
