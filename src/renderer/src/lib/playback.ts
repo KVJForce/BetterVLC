@@ -538,19 +538,21 @@ export class PlaybackController {
     return this.audioIndex
   }
 
-  async loadSubtitle(url: string | null): Promise<void> {
+  async loadSubtitle(url: string | null): Promise<boolean> {
     this.cues = []
     this.setActiveCue(null)
-    if (!url) return
+    if (!url) return false
     try {
       const response = await fetch(url, { cache: 'no-store' })
       if (!response.ok) throw new Error(await response.text().catch(() => 'Subtitle load failed'))
       const text = await response.text()
       this.cues = parseVtt(text)
       this.updateCue()
+      return true
     } catch (error) {
       this.cues = []
       this.onSubtitleError?.(error instanceof Error ? error.message : 'Could not load subtitles')
+      return false
     }
   }
 
@@ -612,7 +614,12 @@ export class PlaybackController {
     return canvas.toDataURL('image/png')
   }
 
+  flushProgress(): void {
+    this.saveProgress(true)
+  }
+
   stop(): void {
+    this.flushProgress()
     this.playingIntent = false
     this.stopSession()
     this.item = null
