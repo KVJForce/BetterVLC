@@ -41,6 +41,17 @@ jobs:
 
       # GitHub rejects a published (non-draft) release whose tag does not
       # exist, so the tag must be pushed before electron-builder publishes.
+      # The release itself is created here, before the build: electron-builder
+      # runs one publisher per target (NSIS, portable) and both would race to
+      # create the release, which GitHub allows — producing duplicate releases
+      # for the same tag. With the release already present, every publisher
+      # finds it and uploads into the same one.
+      - name: Create GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release create "v1.0.${GITHUB_RUN_NUMBER}" --title "1.0.${GITHUB_RUN_NUMBER}" --notes "Built from \`${GITHUB_SHA}\`"
+
       - name: Build and publish release
         shell: bash
         env:

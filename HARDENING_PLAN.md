@@ -355,8 +355,13 @@ auto-update was added after the hardening pass rather than as another H item.
   `npm run dist -- --publish always -c.extraMetadata.version=1.0.$GITHUB_RUN_NUMBER`.
   It first pushes a `v1.0.<run>` tag (GitHub rejects published releases whose
   tag does not exist, and electron-builder does not create git tags), then
-  publishes the NSIS installer, portable exe, blockmap and `latest.yml` to
-  GitHub Releases using `GITHUB_TOKEN` (`contents: write`).
+  creates the release with `gh release create` before building. The latter
+  matters because electron-builder runs one publisher per target (NSIS,
+  portable) and both would otherwise race to create the release, which GitHub
+  allows — leaving duplicate releases on one tag. With the release present up
+  front, every publisher finds it and uploads the NSIS installer, portable
+  exe, blockmap and `latest.yml` into the same one, authenticated by
+  `GITHUB_TOKEN` (`contents: write`).
 - **Versioning:** `extraMetadata.version` overrides the version in the packaged
   `package.json` and in `latest.yml`, so artifact names and the release tag use
   the workflow run number without editing `package.json`. Run numbers only
