@@ -13,7 +13,7 @@ import {
 } from 'lucide-react'
 import type { MediaInfo } from '../../../shared/types'
 import { useLibrary } from '../store/library'
-import { useHistory, progressOf } from '../store/history'
+import { useHistory, historyEntry, progressOf } from '../store/history'
 import { usePlayer } from '../store/player'
 import { useUi } from '../store/ui'
 import { MediaArt, MediaCard } from '../components/MediaCard'
@@ -26,6 +26,7 @@ type Sort = 'recent' | 'title' | 'duration' | 'played'
 export function LibraryPage(): React.JSX.Element {
   const items = useLibrary((state) => state.items)
   const folders = useLibrary((state) => state.folders)
+  const loaded = useLibrary((state) => state.loaded)
   const rescan = useLibrary((state) => state.rescan)
   const history = useHistory((state) => state.entries)
   const libraryFolder = useUi((state) => state.libraryFolder)
@@ -148,7 +149,12 @@ export function LibraryPage(): React.JSX.Element {
         </div>
       </div>
 
-      {!items.length ? (
+      {!loaded ? (
+        <div className="empty-state compact" aria-busy="true">
+          <h2>Loading library</h2>
+          <p>Reading your collection…</p>
+        </div>
+      ) : !items.length ? (
         <div className="empty-state">
           <div className="empty-art">
             <div className="empty-ring" />
@@ -217,7 +223,7 @@ export function LibraryPage(): React.JSX.Element {
 }
 
 function LibraryRow({ item, queue }: { item: MediaInfo; queue: MediaInfo[] }): React.JSX.Element {
-  const entry = useHistory((state) => state.entries[item.id])
+  const entry = useHistory((state) => historyEntry(state.entries, item))
   const progress = progressOf(entry)
   const showContextMenu = useUi((state) => state.showContextMenu)
   const addToQueue = usePlayer((state) => state.addToQueue)

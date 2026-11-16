@@ -1,8 +1,10 @@
 import { create } from 'zustand'
+import { BITMAP_SUBTITLE_CODECS, Routes } from '../../../shared/protocol'
+import { RESUME_MIN_POSITION, resumePoint } from '../../../shared/resume'
 import type { MediaInfo, SubtitleTrackInfo } from '../../../shared/types'
 import { playback, type PlaybackSnapshot } from '../lib/playback'
 import type { Cue } from '../lib/subtitles'
-import { useHistory } from './history'
+import { useHistory, historyEntry } from './history'
 import { useSettings } from './settings'
 import { useUi } from './ui'
 
@@ -16,6 +18,7 @@ export interface VideoFilters {
 
 interface PlayerState {
   item: MediaInfo | null
+  /** Session-only by design: ad-hoc files and external subtitle tokens cannot be restored. */
   queue: MediaInfo[]
   index: number
   playing: boolean
@@ -127,7 +130,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     playback.onEnded = () => get().handleEnded()
     playback.onProgress = (time, duration) => {
       const item = get().item
-      if (item) useHistory.getState().record(item.id, time, duration)
+      if (item) useHistory.getState().record(item, time, duration)
     }
     playback.onError = (message) => {
       set({ error: message, playing: false, buffering: false, loading: false })
@@ -161,6 +164,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
   },
 
   playItem: (item, queue, options = {}) => {
+    if (get().item?.id !== item.id) playback.flushProgress()
     const settings = useSettings.getState()
     const list = queue?.length ? queue : [item]
     let index = list.findIndex((entry) => entry.id === item.id)
@@ -168,11 +172,8 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       list.unshift(item)
       index = 0
     }
-    const history = useHistory.getState().entries[item.id]
-    let start = options.start ?? 0
-    if (options.start === undefined && settings.resume && history && !item.isStream) {
-      if (history.position > 5 && history.position < item.duration * 0.95) start = history.position
-    }
+    const history = historyEntry(useHistory.getState().entries, item)
+    const start = options.start ?? resumePoint(history, item, settings.resume)
     playback.configure({
       maxHeight: settings.maxHeight,
       deinterlace: settings.deinterlace,
@@ -206,7 +207,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
       start,
       autoplay: options.autoplay ?? true
     })
-    if (start > 5) {
+    if (start > RESUME_MIN_POSITION) {
       useUi.getState().toast({
         title: `Resumed at ${formatResume(start)}`,
         description: 'Pick up where you left off',
@@ -323,11 +324,21 @@ export const usePlayer = create<PlayerState>((set, get) => ({
     set({ subtitleIndex: index, cue: null })
     let url: string | null = null
     if (track.external && track.token) {
-      url = `${window.api.baseUrl}/subtitle-ext/${track.token}`
+      url = `${window.api.baseUrl}${Routes.externalSubtitle(track.token)}`
     } else {
       url = await window.api.media.subtitleUrl(item.id, track.index)
     }
-    await playback.loadSubtitle(url)
+    const loaded = await playback.loadSubtitle(url)
+    if (!loaded) {
+      set({ subtitleIndex: -1, cue: null })
+      if (!url) {
+        useUi.getState().toast({
+          title: 'Subtitles unavailable',
+          description: 'This track cannot be played in the current session.',
+          tone: 'error'
+        })
+      }
+    }
   },
 
   addExternalSubtitle: async () => {
@@ -465,7 +476,7 @@ export const usePlayer = create<PlayerState>((set, get) => ({
 }))
 
 function pickSubtitle(tracks: SubtitleTrackInfo[], language: string): SubtitleTrackInfo | null {
-  const text = tracks.filter((track) => !['hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'xsub'].includes(track.codec))
+  const text = tracks.filter((track) => !BITMAP_SUBTITLE_CODECS.has(track.codec))
   if (!text.length) return null
   if (language) {
     const match = text.find((track) => track.language?.toLowerCase().startsWith(language.toLowerCase()))

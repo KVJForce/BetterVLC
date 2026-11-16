@@ -1,14 +1,15 @@
 import { MoreHorizontal, Music2, Play, Film } from 'lucide-react'
+import { Routes } from '../../../shared/protocol'
 import type { MediaInfo } from '../../../shared/types'
 import { formatTime, resolutionLabel } from '../lib/format'
-import { useHistory, progressOf } from '../store/history'
+import { useHistory, historyEntry, progressOf } from '../store/history'
 import { usePlayer } from '../store/player'
 import { useLibrary } from '../store/library'
 import { useUi } from '../store/ui'
 import { playMedia } from '../lib/actions'
 
 export function thumbSrc(item: MediaInfo): string | undefined {
-  return item.thumb ? `${window.api.baseUrl}/thumb/${item.thumb}` : undefined
+  return item.thumb ? `${window.api.baseUrl}${Routes.thumb(item.thumb)}` : undefined
 }
 
 export function toneFor(id: string): number {
@@ -49,7 +50,7 @@ export function MediaCard({
   queue?: MediaInfo[]
   wide?: boolean
 }): React.JSX.Element {
-  const history = useHistory((state) => state.entries[item.id])
+  const history = useHistory((state) => historyEntry(state.entries, item))
   const progress = progressOf(history)
   const addToQueue = usePlayer((state) => state.addToQueue)
   const showContextMenu = useUi((state) => state.showContextMenu)

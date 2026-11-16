@@ -12,7 +12,7 @@ import {
   X
 } from 'lucide-react'
 import { usePlayer } from '../store/player'
-import { useHistory, progressOf } from '../store/history'
+import { useHistory, historyEntry, progressOf } from '../store/history'
 import { useUi } from '../store/ui'
 import { MediaArt } from '../components/MediaCard'
 import { openMediaFiles, playMedia } from '../lib/actions'
@@ -35,7 +35,7 @@ export function QueuePage(): React.JSX.Element {
   const stop = usePlayer((state) => state.stop)
   const setQueueOpen = useUi((state) => state.setQueueOpen)
   const showContextMenu = useUi((state) => state.showContextMenu)
-  const entry = useHistory((state) => (item ? state.entries[item.id] : undefined))
+  const entry = useHistory((state) => (item ? historyEntry(state.entries, item) : undefined))
 
   if (!item || !queue.length) {
     return (

@@ -11,8 +11,9 @@ import {
 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import type { MediaInfo } from '../../../shared/types'
+import { isContinueWatching } from '../../../shared/resume'
 import { useLibrary } from '../store/library'
-import { useHistory, progressOf } from '../store/history'
+import { useHistory, historyEntry, progressOf } from '../store/history'
 import { usePlayer } from '../store/player'
 import { useUi } from '../store/ui'
 import { MediaArt, MediaCard, thumbSrc } from '../components/MediaCard'
@@ -22,22 +23,22 @@ import { formatTime } from '../lib/format'
 export function HomePage(): React.JSX.Element {
   const items = useLibrary((state) => state.items)
   const folders = useLibrary((state) => state.folders)
+  const loaded = useLibrary((state) => state.loaded)
   const entries = useHistory((state) => state.entries)
   const setView = useUi((state) => state.setView)
   const setLibraryFolder = useUi((state) => state.setLibraryFolder)
   const playItem = usePlayer((state) => state.playItem)
 
   const continueItems = items
-    .filter((item) => {
-      const entry = entries[item.id]
-      const progress = progressOf(entry)
-      return progress > 0.01 && progress < 0.97
-    })
-    .sort((a, b) => (entries[b.id]?.updatedAt ?? 0) - (entries[a.id]?.updatedAt ?? 0))
+    .filter((item) => isContinueWatching(historyEntry(entries, item), item))
+    .sort(
+      (a, b) =>
+        (historyEntry(entries, b)?.updatedAt ?? 0) - (historyEntry(entries, a)?.updatedAt ?? 0)
+    )
 
   const recent = [...items].sort((a, b) => b.addedAt - a.addedAt).slice(0, 10)
   const hero = continueItems[0] ?? recent[0]
-  const heroProgress = hero ? progressOf(entries[hero.id]) : 0
+  const heroProgress = hero ? progressOf(historyEntry(entries, hero)) : 0
   const date = new Date().toLocaleDateString(undefined, {
     weekday: 'long',
     month: 'long',
@@ -51,9 +52,11 @@ export function HomePage(): React.JSX.Element {
           <span className="eyebrow">{date}</span>
           <h1>Your media, beautifully played.</h1>
           <p>
-            {items.length
-              ? `${items.length} titles across ${folders.length} ${folders.length === 1 ? 'folder' : 'folders'}. No codec left behind.`
-              : 'Drop in a file, add a folder, or open a stream. BetterVLC handles the rest.'}
+            {!loaded
+              ? 'Loading your library…'
+              : items.length
+                ? `${items.length} titles across ${folders.length} ${folders.length === 1 ? 'folder' : 'folders'}. No codec left behind.`
+                : 'Drop in a file, add a folder, or open a stream. BetterVLC handles the rest.'}
           </p>
         </div>
         <div className="home-actions">
@@ -68,7 +71,17 @@ export function HomePage(): React.JSX.Element {
         </div>
       </header>
 
-      {hero ? (
+      {!loaded ? (
+        <section className="hero hero-empty" aria-busy="true">
+          <div className="empty-hero-content">
+            <span className="hero-eyebrow">
+              <Sparkles size={14} /> Loading
+            </span>
+            <h2>Reading your library.</h2>
+            <p>Gathering titles, artwork and playback details.</p>
+          </div>
+        </section>
+      ) : hero ? (
         <motion.section
           className="hero"
           initial={{ opacity: 0, y: 16 }}
@@ -100,7 +113,7 @@ export function HomePage(): React.JSX.Element {
                   <div style={{ width: `${heroProgress * 100}%` }} />
                 </div>
                 <span>
-                  {formatTime(entries[hero.id]?.position ?? 0)} / {formatTime(hero.duration)}
+                  {formatTime(historyEntry(entries, hero)?.position ?? 0)} / {formatTime(hero.duration)}
                 </span>
               </div>
             ) : null}

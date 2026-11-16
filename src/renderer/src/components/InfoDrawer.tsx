@@ -198,7 +198,7 @@ export function InfoDrawer(): React.JSX.Element {
                 </h3>
                 <InfoRow label="Engine" value={mode === 'mse' ? 'FFmpeg compatibility pipeline' : 'Direct play'} />
                 <InfoRow label="Native capable" value={item.nativePlayable ? 'Yes' : 'No · remux or transcode'} />
-                <InfoRow label="Video strategy" value={item.videoCopy ? 'Stream copy (H.264)' : 'Transcode (H.264)'} />
+                <InfoRow label="Video strategy" value={item.videoCopy ? 'Stream copy when settings allow (H.264)' : 'Transcode (H.264)'} />
                 <InfoRow label="MSE MIME" value={item.mseMime} mono />
                 {item.folder ? <InfoRow label="Added" value={formatDate(item.addedAt)} /> : null}
                 {item.mtime ? <InfoRow label="Modified" value={formatDate(item.mtime)} /> : null}
