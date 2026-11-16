@@ -61,6 +61,22 @@ Development expects the FFmpeg and FFprobe binaries installed by
 `ffmpeg-static` and `ffprobe-static`. Packaged builds copy both binaries to
 `resources/bin` and use them from there.
 
+## Updates
+
+Every push to `main` runs `.github/workflows/release.yml`. It typechecks, builds
+the Windows installer and portable exe, and publishes them as a GitHub Release
+versioned `1.0.<workflow run number>`. The version is injected at build time, so
+`package.json` does not change for a release.
+
+Installed builds check GitHub Releases on launch and every six hours. When a
+newer release exists, the update downloads in the background and the app offers
+**Restart now** or **Later**; choosing Later installs it when you quit.
+
+The first release that contains the updater has to be installed manually.
+Builds made before it have no update feed, and portable builds run from a
+temporary directory, so they do not update themselves. Releases are unsigned,
+so Windows SmartScreen may warn on the first manual install.
+
 ## Keyboard shortcuts
 
 | Keys             | Action                              |
@@ -90,6 +106,7 @@ Development expects the FFmpeg and FFprobe binaries installed by
 src/
   main/            Electron main process
     index.ts       window, IPC, media keys, open-with
+    updater.ts     GitHub Releases auto-update
     library.ts     recursive scan, persistence, file watching
     probe.ts       ffprobe metadata, playback planning
     streamServer.ts fMP4 pipeline, range requests, subtitle conversion

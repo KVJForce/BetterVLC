@@ -338,8 +338,38 @@ The dev server needs inline scripts and an HMR WebSocket, so the source meta tag
 | Missing port argument | Thumbnails and playback still work |
 | Force `server.start()` failure | Error dialog, clean exit |
 | Quit during a large scan | No writes after `will-quit` |
+| Push to `main` | Actions publishes a `1.0.<run>` release with installer, blockmap and `latest.yml` |
+| Installed app, newer release | Downloads silently, then offers Restart now / Later |
+| Installed app, offline | Launch unaffected; request failure is logged |
+| Portable build | No update check |
 
 **Gate:** `npm run typecheck` currently covers typed breakage across all three projects. There is no test runner; adding Vitest for the pure modules (`protocol`, `resume`, `parseVtt`, `cueAt`) before H10/H14 would pay for itself. Keep tests out of the P0 PRs.
+
+## Update delivery
+
+The installed 1.0.0 build could not receive any of the fixes above, so
+auto-update was added after the hardening pass rather than as another H item.
+
+- **CI:** `.github/workflows/release.yml` runs on every push to `main`
+  (`windows-latest`, Node 22). It runs `npm run typecheck`, then
+  `npm run dist -- --publish always -c.extraMetadata.version=1.0.$GITHUB_RUN_NUMBER`.
+  electron-builder publishes the NSIS installer, portable exe, blockmap and
+  `latest.yml` to GitHub Releases using `GITHUB_TOKEN` (`contents: write`).
+- **Versioning:** `extraMetadata.version` overrides the version in the packaged
+  `package.json` and in `latest.yml`, so artifact names and the release tag use
+  the workflow run number without editing `package.json`. Run numbers only
+  increase, so each push is newer than the last.
+- **Client:** `src/main/updater.ts` runs only when `app.isPackaged` and skips
+  portable builds (electron-builder sets `PORTABLE_EXECUTABLE_DIR`). It checks
+  on launch and every six hours, downloads automatically, and prompts once per
+  version with Restart now / Later. Later is covered by
+  `autoInstallOnAppQuit`. Offline checks log and leave playback alone.
+- **Packaging:** `electron-updater` is a production dependency and ships inside
+  `app.asar`. The font packages are bundled by Vite and moved to development
+  dependencies so they are not duplicated into the asar.
+- **Caveats:** the previously installed 1.0.0 has no `app-update.yml` and must
+  be replaced manually with the first CI release. Releases are unsigned, so
+  SmartScreen may warn. Portable builds deliberately do not self-update.
 
 ## Provenance
 
