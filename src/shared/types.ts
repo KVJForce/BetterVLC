@@ -69,6 +69,7 @@ export interface MediaInfo {
   thumb?: string
   cover?: string
   folder?: string
+  fileKey?: string
   mtime: number
   addedAt: number
   tags?: MediaTags
@@ -92,15 +93,6 @@ export interface PlaybackPlan {
   mime: string
   duration: number
   baseTime: number
-}
-
-export interface StreamOptions {
-  id: string
-  start: number
-  audio: number
-  maxHeight: number
-  hwDecode: boolean
-  deinterlace: boolean
 }
 
 export interface ExternalSubtitle {

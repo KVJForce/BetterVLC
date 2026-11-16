@@ -4,27 +4,16 @@ import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { binaryPath, cacheDir } from './config'
+import { shouldCopyVideo } from './playbackPolicy'
 import { getSource } from './registry'
-import { thumbFileName } from './thumbnails'
+import {
+  BITMAP_SUBTITLE_CODECS,
+  RoutePatterns,
+  decodeStreamOptions,
+  extensionOf,
+  mimeForFile
+} from '../shared/protocol'
 import type { MediaInfo } from '../shared/types'
-
-const MIME: Record<string, string> = {
-  mp4: 'video/mp4',
-  m4v: 'video/mp4',
-  mov: 'video/quicktime',
-  webm: 'video/webm',
-  ogv: 'video/ogg',
-  ogg: 'audio/ogg',
-  oga: 'audio/ogg',
-  opus: 'audio/ogg',
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  aac: 'audio/aac',
-  flac: 'audio/flac',
-  wav: 'audio/wav',
-  mkv: 'video/x-matroska',
-  avi: 'video/x-msvideo'
-}
 
 interface SubtitleEntry {
   path: string
@@ -72,39 +61,38 @@ export class StreamServer {
       return
     }
 
-    if (url.pathname.startsWith('/media/')) {
-      const id = url.pathname.slice('/media/'.length)
-      const info = getSource(id)
+    const media = RoutePatterns.media.exec(url.pathname)
+    if (media) {
+      const info = getSource(decodeURIComponent(media[1]))
       if (!info || info.isStream) return notFound(res)
-      return this.serveFile(req, res, info.path, MIME[ext(info.path)] ?? 'application/octet-stream')
+      return this.serveFile(req, res, info.path, mimeForFile(info.path))
     }
 
-    if (url.pathname.startsWith('/thumb/')) {
-      const name = path.basename(url.pathname.slice('/thumb/'.length))
+    const thumb = RoutePatterns.thumb.exec(url.pathname)
+    if (thumb) {
+      const name = path.basename(decodeURIComponent(thumb[1]))
       const file = path.join(cacheDir('thumbs'), name)
       if (!name.endsWith('.jpg') || !fs.existsSync(file)) return notFound(res)
       return this.serveFile(req, res, file, 'image/jpeg')
     }
 
-    if (url.pathname === '/stream') {
+    if (url.pathname === RoutePatterns.stream) {
       const id = url.searchParams.get('id') ?? ''
       const info = getSource(id)
       if (!info) return notFound(res)
       return this.streamMedia(req, res, info, url.searchParams)
     }
 
-    if (url.pathname.startsWith('/subtitle/')) {
-      const parts = url.pathname.split('/').filter(Boolean)
-      const id = parts[1]
-      const track = Number(parts[2])
-      const info = getSource(id)
+    const subtitle = RoutePatterns.subtitle.exec(url.pathname)
+    if (subtitle) {
+      const info = getSource(decodeURIComponent(subtitle[1]))
       if (!info) return notFound(res)
-      return this.serveSubtitle(res, info, track)
+      return this.serveSubtitle(res, info, Number(subtitle[2]))
     }
 
-    if (url.pathname.startsWith('/subtitle-ext/')) {
-      const token = url.pathname.split('/')[2]
-      const entry = this.externalSubtitles.get(token)
+    const external = RoutePatterns.externalSubtitle.exec(url.pathname)
+    if (external) {
+      const entry = this.externalSubtitles.get(decodeURIComponent(external[1]))
       if (!entry) return notFound(res)
       return this.serveSubtitleFile(res, entry.path)
     }
@@ -160,13 +148,9 @@ export class StreamServer {
     params: URLSearchParams
   ): void {
     const duration = info.duration || 0
-    const requested = Number(params.get('t') ?? 0) || 0
-    const start = duration > 0 ? Math.min(Math.max(requested, 0), Math.max(duration - 0.25, 0)) : 0
-    const audioIndex = Number(params.get('a') ?? 0)
-    const maxHeight = Math.max(240, Math.min(Number(params.get('mh') ?? 1080) || 1080, 2160))
-    const deinterlace = params.get('di') === '1'
-    const hw = params.get('hw') !== '0'
-    const forceTranscode = params.get('tc') === '1'
+    const { start, audio, maxHeight, deinterlace, hwDecode: hw, forceTranscode } =
+      decodeStreamOptions(params, duration)
+    const audioIndex = Math.min(Math.max(audio, 0), Math.max(info.audioTracks.length - 1, 0))
 
     const args = ['-hide_banner', '-loglevel', 'error']
     const inputSeek = start > 0 ? Math.max(0, start - 6) : 0
@@ -198,7 +182,7 @@ export class StreamServer {
     args.push('-sn', '-dn', '-map_metadata', '-1')
 
     if (hasVideo) {
-      const copy = info.videoCopy && !deinterlace && !info.hdr && !forceTranscode
+      const copy = shouldCopyVideo(info, { deinterlace, forceTranscode })
       const filters: string[] = []
       if (deinterlace) filters.push('yadif=deint=interlaced')
       if (!copy) {
@@ -293,13 +277,13 @@ export class StreamServer {
       res.end('Embedded subtitles are not available for live streams')
       return
     }
-    if (['hdmv_pgs_subtitle', 'dvd_subtitle', 'dvb_subtitle', 'xsub'].includes(track.codec)) {
+    if (BITMAP_SUBTITLE_CODECS.has(track.codec)) {
       res.writeHead(415, { 'Content-Type': 'text/plain' })
       res.end('Bitmap subtitles cannot be converted to text')
       return
     }
 
-    const cacheKey = `${info.id}-${track.index}-${Math.round(info.mtime)}.vtt`
+    const cacheKey = `${info.id}-${track.index}-${info.mtime}-${info.size}.vtt`
     const cacheFile = path.join(cacheDir('subs'), cacheKey)
     if (!fs.existsSync(cacheFile)) {
       const jobKey = cacheFile
@@ -336,7 +320,7 @@ export class StreamServer {
   }
 
   private async serveSubtitleFile(res: http.ServerResponse, file: string): Promise<void> {
-    const extName = ext(file)
+    const extName = extensionOf(file)
     if (extName === 'vtt') {
       return this.serveFile({ headers: {} } as http.IncomingMessage, res, file, 'text/vtt; charset=utf-8')
     }
@@ -379,15 +363,7 @@ export class StreamServer {
   }
 }
 
-function ext(file: string): string {
-  return path.extname(file).slice(1).toLowerCase()
-}
-
 function notFound(res: http.ServerResponse): void {
   res.writeHead(404, { 'Content-Type': 'text/plain' })
   res.end('Not found')
-}
-
-export function thumbUrlFor(baseUrl: string, info: MediaInfo): string | undefined {
-  return info.thumb ? `${baseUrl}/thumb/${thumbFileName(info)}` : undefined
 }

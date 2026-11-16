@@ -3,6 +3,14 @@ import path from 'node:path'
 import fs from 'node:fs'
 import crypto from 'node:crypto'
 import { binaryPath } from './config'
+import { shouldCopyVideo } from './playbackPolicy'
+import {
+  NATIVE_AUDIO_CODECS,
+  NATIVE_AUDIO_EXTENSIONS,
+  NATIVE_AUDIO_ONLY_CODECS,
+  NATIVE_VIDEO_CODECS,
+  NATIVE_VIDEO_EXTENSIONS
+} from '../shared/protocol'
 import type {
   AudioTrackInfo,
   ChapterInfo,
@@ -93,11 +101,6 @@ function pickTag(tags: Record<string, string>, ...keys: string[]): string | unde
   return undefined
 }
 
-const NATIVE_VIDEO_CODECS = new Set(['h264', 'vp8', 'vp9', 'av1'])
-const NATIVE_AUDIO_CODECS = new Set(['aac', 'mp3', 'opus', 'vorbis'])
-const NATIVE_AUDIO_ONLY = new Set(['mp3', 'flac', 'aac', 'opus', 'vorbis', 'pcm_s16le', 'pcm_s24le', 'pcm_f32le', 'pcm_s32le'])
-const NATIVE_AUDIO_EXT = new Set(['mp3', 'flac', 'wav', 'm4a', 'aac', 'ogg', 'oga', 'opus'])
-
 export function avcCodecString(profile?: string, level?: number): string | null {
   if (!profile) return null
   let p: string | null = null
@@ -121,7 +124,7 @@ export function probeMedia(
   options: { isStream?: boolean; timeoutMs?: number } = {}
 ): Promise<MediaInfo> {
   const isStream = !!options.isStream
-  const stat = !isStream && fs.existsSync(source) ? fs.statSync(source) : null
+  const stat = !isStream && fs.existsSync(source) ? fs.statSync(source, { bigint: true }) : null
   const cacheKey = stat ? `${stat.mtimeMs}:${stat.size}` : ''
   const cached = LOCAL_CACHE.get(source)
   if (!isStream && cached && cached.key === cacheKey) return Promise.resolve(cached.info)
@@ -175,7 +178,7 @@ function buildInfo(
   source: string,
   data: ProbeResult,
   isStream: boolean,
-  stat: fs.Stats | null
+  stat: fs.BigIntStats | null
 ): MediaInfo {
   const streams = data.streams ?? []
   const format = data.format ?? {}
@@ -239,7 +242,7 @@ function buildInfo(
   if (!isStream) {
     if (kind === 'video') {
       nativePlayable =
-        ['mp4', 'm4v', 'mov', 'webm'].includes(ext) &&
+        NATIVE_VIDEO_EXTENSIONS.has(ext) &&
         !!videoCodec &&
         NATIVE_VIDEO_CODECS.has(videoCodec) &&
         (videoCodec !== 'h264' || isH264Copyable(video)) &&
@@ -247,13 +250,14 @@ function buildInfo(
         audioTracks.length <= 1
     } else {
       nativePlayable =
-        NATIVE_AUDIO_EXT.has(ext) &&
+        NATIVE_AUDIO_EXTENSIONS.has(ext) &&
         audioTracks.length <= 1 &&
-        NATIVE_AUDIO_ONLY.has(audioTracks[0]?.codec ?? '')
+        NATIVE_AUDIO_ONLY_CODECS.has(audioTracks[0]?.codec ?? '')
     }
   }
 
-  const copyVideo = !!video && isH264Copyable(video) && !isHdr(video)
+  const hdr = video ? isHdr(video) : false
+  const copyVideo = shouldCopyVideo({ videoCopy: !!video && isH264Copyable(video), hdr })
   const videoCodecString = copyVideo
     ? avcCodecString(video?.profile, video?.level) ?? 'avc1.640029'
     : 'avc1.640029'
@@ -270,6 +274,7 @@ function buildInfo(
 
   const info: MediaInfo = {
     id: sourceId(source),
+    fileKey: stat ? fileKeyOf(stat) : undefined,
     path: source,
     name: isStream ? title : path.basename(source),
     title,
@@ -287,7 +292,7 @@ function buildInfo(
     videoProfile: video?.profile,
     videoLevel: video?.level,
     pixFmt: video?.pix_fmt,
-    hdr: video ? isHdr(video) : false,
+    hdr,
     audioTracks,
     subtitleTracks,
     chapters,
@@ -296,7 +301,7 @@ function buildInfo(
     videoCopy: copyVideo,
     codecString,
     folder: isStream ? undefined : path.dirname(source),
-    mtime: stat?.mtimeMs ?? 0,
+    mtime: stat ? Number(stat.mtimeMs) : 0,
     addedAt: Date.now(),
     tags: {
       title: pickTag(formatTags, 'title'),
@@ -312,30 +317,22 @@ function buildInfo(
   return info
 }
 
+export function fileKeyFor(file: string): string | undefined {
+  try {
+    return fileKeyOf(fs.statSync(file, { bigint: true }))
+  } catch {
+    return undefined
+  }
+}
+
+function fileKeyOf(stat: fs.BigIntStats): string | undefined {
+  return stat.ino === 0n ? undefined : `${stat.dev}:${stat.ino}`
+}
+
 function isHdr(stream: ProbeStream): boolean {
   const transfer = (stream.color_transfer ?? '').toLowerCase()
   if (transfer === 'smpte2084' || transfer === 'arib-std-b67') return true
   return (stream.side_data_list ?? []).some((s) =>
     String(s.side_data_type ?? '').toLowerCase().includes('mastering')
   )
-}
-
-export function mergeExternalSubtitle(
-  info: MediaInfo,
-  subtitle: { token: string; name: string; path: string }
-): MediaInfo {
-  const ext = path.extname(subtitle.path).slice(1).toLowerCase()
-  const track: SubtitleTrackInfo = {
-    index: 1000 + info.subtitleTracks.length,
-    codec: ext || 'subtitle',
-    title: subtitle.name,
-    external: true,
-    token: subtitle.token,
-    path: subtitle.path
-  }
-  return { ...info, subtitleTracks: [...info.subtitleTracks, track] }
-}
-
-export function findEmbeddedSubtitlePath(info: MediaInfo, index: number): string | null {
-  return info.subtitleTracks.find((s) => s.index === index)?.path ?? null
 }
