@@ -91,10 +91,30 @@ export function cueAt(cues: Cue[], time: number, delay: number): Cue | null {
     }
   }
   if (candidate < 0) return null
-  for (let i = candidate; i >= 0 && i > candidate - 4; i -= 1) {
+  // Walk backwards over every cue that could still be on screen. The old
+  // four-cue limit missed long cues sitting behind newer ones; the prefix
+  // maximum tells us when no earlier cue can reach `t`, so the walk stays
+  // short in normal playback.
+  const maxEnd = maxEnds(cues)
+  for (let i = candidate; i >= 0; i -= 1) {
+    if (maxEnd[i] < t) break
     const cue = cues[i]
     if (t >= cue.start && t <= cue.end) return cue
-    if (cue.end < t) break
   }
   return null
+}
+
+const MAX_END_CACHE = new WeakMap<Cue[], number[]>()
+
+function maxEnds(cues: Cue[]): number[] {
+  const cached = MAX_END_CACHE.get(cues)
+  if (cached && cached.length === cues.length) return cached
+  const ends = new Array<number>(cues.length)
+  let furthest = Number.NEGATIVE_INFINITY
+  for (let i = 0; i < cues.length; i += 1) {
+    furthest = Math.max(furthest, cues[i].end)
+    ends[i] = furthest
+  }
+  MAX_END_CACHE.set(cues, ends)
+  return ends
 }
