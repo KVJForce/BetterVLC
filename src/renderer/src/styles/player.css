@@ -82,6 +82,17 @@
     transform 0.28s;
 }
 
+/*
+ * The app titlebar's 44px drag region is still computed while the player
+ * overlay covers it, because drag regions ignore z-index. Buttons drawn in
+ * that strip lose their upper pixels to window dragging (the round buttons
+ * start at y=18 and overlap it by 26px), so every control here opts out.
+ * The heading between the controls remains a drag handle.
+ */
+.player-topbar button {
+  -webkit-app-region: no-drag;
+}
+
 .player-stage.controls-hidden .player-topbar {
   opacity: 0;
   transform: translateY(-8px);
